@@ -1,6 +1,7 @@
 /*
 	MINEM68K.c
 
+	Copyright (C) 2025 Nick Chaiyachakorn
 	Copyright (C) 2009 Bernd Schmidt, Paul C. Pratt
 
 	You can redistribute this file and/or modify it under the terms
@@ -26,8 +27,14 @@
 	This emulator is about 10 times smaller than the UAE,
 	at the cost of being 2 to 3 times slower.
 
+		
+	Changelog:
+
 	FPU Emulation added 9/12/2009 by Ross Martin
 		(this code now located in "FPCPEMDV.h")
+
+	2025-05-20: Nick Chaiyachakorn - Integration of DGFXMDEV bus master device hooks and tick logic for Macintosh II.
+
 */
 
 #include "PICOMMON.h"
@@ -39,6 +46,16 @@
 #endif
 
 #include "MINEM68K.h"
+
+// --- Begin per-cycle device emulation hooks ---
+// The following IMPORTPROC is used to call DGFXMDEV_Tick after each emulated instruction
+// to emulate per-cycle behavior of DGFXMDEV, a (fictional) PDS device. Other emulated
+// devices hanging off the 68k slot can add similar IMPORTPROC declarations and calls here
+// to implement their own per-tick behavior.
+#if (CurEmMd == kEmMd_SE)
+IMPORTPROC DGFXMDEV_Tick(void);
+#endif
+// --- End per-cycle device emulation hooks ---
 
 /*
 	ReportAbnormalID unused 0x0123 - 0x01FF
@@ -836,7 +853,11 @@ LOCALPROC m68k_go_MaxCycles(void)
 #endif
 
 		d();
-
+		/* At this point, run per-cycle callbacks for each device that
+		 * needs to run on every 68k cycle. */
+#if (CurEmMd == kEmMd_SE)
+		DGFXMDEV_Tick();
+#endif
 		DecodeNextInstruction(&d, &Cycles, &y);
 
 	} while (((si5rr)(V_MaxCyclesToGo -= Cycles)) > 0);
@@ -5367,11 +5388,11 @@ LOCALPROC my_reg_call DoCodeNullXShift(ui5r dstvalue)
 {
 	CFLG = XFLG;
 
-	ZFLG = Bool2Bit(dstvalue == 0);
-	NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
-	VFLG = 0;
+			ZFLG = Bool2Bit(dstvalue == 0);
+			NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
+			VFLG = 0;
 
-	ArgSetDstValue(dstvalue);
+			ArgSetDstValue(dstvalue);
 }
 
 LOCALIPROC DoCodeRxlB(void)
@@ -5393,11 +5414,11 @@ LOCALIPROC DoCodeRxlB(void)
 			XFLG = CFLG;
 		}
 
-		ZFLG = Bool2Bit(dstvalue == 0);
-		NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
-		VFLG = 0;
+			ZFLG = Bool2Bit(dstvalue == 0);
+			NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
+			VFLG = 0;
 
-		ArgSetDstValue(dstvalue);
+			ArgSetDstValue(dstvalue);
 	}
 }
 
@@ -5420,11 +5441,11 @@ LOCALIPROC DoCodeRxlW(void)
 			XFLG = CFLG;
 		}
 
-		ZFLG = Bool2Bit(dstvalue == 0);
-		NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
-		VFLG = 0;
+			ZFLG = Bool2Bit(dstvalue == 0);
+			NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
+			VFLG = 0;
 
-		ArgSetDstValue(dstvalue);
+			ArgSetDstValue(dstvalue);
 	}
 }
 
@@ -5437,7 +5458,7 @@ LOCALIPROC DoCodeRxlL(void)
 		DoCodeNullXShift(dstvalue);
 	} else {
 #if WantCloserCyc
-		V_MaxCyclesToGo -= (cnt * 2 * kCycleScale);
+	V_MaxCyclesToGo -= (cnt * 2 * kCycleScale);
 #endif
 
 		for (; cnt; --cnt) {
@@ -5464,7 +5485,7 @@ LOCALIPROC DoCodeRxrB(void)
 		DoCodeNullXShift(dstvalue);
 	} else {
 #if WantCloserCyc
-		V_MaxCyclesToGo -= (cnt * 2 * kCycleScale);
+	V_MaxCyclesToGo -= (cnt * 2 * kCycleScale);
 #endif
 
 		dstvalue = ui5r_FromUByte(dstvalue);
@@ -5492,7 +5513,7 @@ LOCALIPROC DoCodeRxrW(void)
 		DoCodeNullXShift(dstvalue);
 	} else {
 #if WantCloserCyc
-		V_MaxCyclesToGo -= (cnt * 2 * kCycleScale);
+	V_MaxCyclesToGo -= (cnt * 2 * kCycleScale);
 #endif
 
 		dstvalue = ui5r_FromUWord(dstvalue);
@@ -5503,11 +5524,11 @@ LOCALIPROC DoCodeRxrW(void)
 		}
 		dstvalue = ui5r_FromSWord(dstvalue);
 
-		ZFLG = Bool2Bit(dstvalue == 0);
-		NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
-		VFLG = 0;
+			ZFLG = Bool2Bit(dstvalue == 0);
+			NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
+			VFLG = 0;
 
-		ArgSetDstValue(dstvalue);
+			ArgSetDstValue(dstvalue);
 	}
 }
 
@@ -5531,11 +5552,11 @@ LOCALIPROC DoCodeRxrL(void)
 		}
 		dstvalue = ui5r_FromSLong(dstvalue);
 
-		ZFLG = Bool2Bit(dstvalue == 0);
-		NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
-		VFLG = 0;
+			ZFLG = Bool2Bit(dstvalue == 0);
+			NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
+			VFLG = 0;
 
-		ArgSetDstValue(dstvalue);
+			ArgSetDstValue(dstvalue);
 	}
 }
 
@@ -5561,13 +5582,13 @@ LOCALIPROC DoCodeRolB(void)
 
 			dstvalue = (ui5r)(si5r)(si3b)dst;
 		}
-		ZFLG = Bool2Bit(dstvalue == 0);
-		NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
-		VFLG = 0;
+			ZFLG = Bool2Bit(dstvalue == 0);
+			NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
+			VFLG = 0;
 		CFLG = (dstvalue & 1);
-		V_regs.LazyFlagKind = kLazyFlagsDefault;
+			V_regs.LazyFlagKind = kLazyFlagsDefault;
 
-		ArgSetDstValue(dstvalue);
+			ArgSetDstValue(dstvalue);
 	}
 }
 
@@ -5657,14 +5678,14 @@ LOCALIPROC DoCodeRorB(void)
 
 			dstvalue = (ui5r)(si5r)(si3b)dst;
 		}
-		ZFLG = Bool2Bit(dstvalue == 0);
-		NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
-		VFLG = 0;
+			ZFLG = Bool2Bit(dstvalue == 0);
+			NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
+			VFLG = 0;
 		CFLG = NFLG;
 
-		V_regs.LazyFlagKind = kLazyFlagsDefault;
+			V_regs.LazyFlagKind = kLazyFlagsDefault;
 
-		ArgSetDstValue(dstvalue);
+			ArgSetDstValue(dstvalue);
 	}
 }
 
@@ -5690,14 +5711,14 @@ LOCALIPROC DoCodeRorW(void)
 
 			dstvalue = (ui5r)(si5r)(si4b)dst;
 		}
-		ZFLG = Bool2Bit(dstvalue == 0);
-		NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
-		VFLG = 0;
+			ZFLG = Bool2Bit(dstvalue == 0);
+			NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
+			VFLG = 0;
 		CFLG = NFLG;
 
-		V_regs.LazyFlagKind = kLazyFlagsDefault;
+			V_regs.LazyFlagKind = kLazyFlagsDefault;
 
-		ArgSetDstValue(dstvalue);
+			ArgSetDstValue(dstvalue);
 	}
 }
 
@@ -5723,16 +5744,16 @@ LOCALIPROC DoCodeRorL(void)
 
 			dstvalue = (ui5r)(si5r)(si5b)dst;
 		}
-		ZFLG = Bool2Bit(dstvalue == 0);
-		NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
-		VFLG = 0;
+			ZFLG = Bool2Bit(dstvalue == 0);
+			NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
+			VFLG = 0;
 		CFLG = NFLG;
 
-		V_regs.LazyFlagKind = kLazyFlagsDefault;
+			V_regs.LazyFlagKind = kLazyFlagsDefault;
 
-		ArgSetDstValue(dstvalue);
+			ArgSetDstValue(dstvalue);
+		}
 	}
-}
 
 
 #if UseLazyZ
@@ -6302,7 +6323,7 @@ LOCALIPROC DoCodeOrISR(void)
 {
 	if (0 == V_regs.s) {
 		DoPrivilegeViolation();
-	} else {
+		} else {
 		V_regs.SrcVal = nextiword_nm();
 
 		m68k_setSR(m68k_getSR() | V_regs.SrcVal);
@@ -6513,7 +6534,7 @@ LOCALIPROC DoCodeAbcd(void)
 		if (dstvalue != 0) {
 			ZFLG = 0;
 		}
-		NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
+			NFLG = Bool2Bit(ui5r_MSBisSet(dstvalue));
 		VFLG = Bool2Bit((flgs != flgo) && ((NFLG != 0) != flgo));
 		/*
 			but according to my reference book,
@@ -6521,8 +6542,8 @@ LOCALIPROC DoCodeAbcd(void)
 		*/
 	}
 
-	ArgSetDstValue(dstvalue);
-}
+			ArgSetDstValue(dstvalue);
+		}
 
 LOCALIPROC DoCodeSbcd(void)
 {
@@ -6849,7 +6870,7 @@ LOCALIPROC DoCodeMoveRUSP(void)
 	/* MOVE USP 0100111001100aaa */
 	if (0 == V_regs.s) {
 		DoPrivilegeViolation();
-	} else {
+		} else {
 		ui5r dstreg = V_regs.CurDecOpY.v[1].ArgDat;
 		ui5r *dstp = &V_regs.regs[dstreg];
 
@@ -6918,7 +6939,7 @@ LOCALIPROC DoCodeReset(void)
 	/* Reset 0100111001110000 */
 	if (0 == V_regs.s) {
 		DoPrivilegeViolation();
-	} else {
+		} else {
 		local_customreset();
 	}
 }
@@ -7121,7 +7142,7 @@ LOCALPROC DoCAS(void)
 			newv = ui5r_FromSByte(newv);
 		} else if (V_regs.CurDecOpY.v[0].ArgDat == 2) {
 			newv = ui5r_FromSWord(newv);
-		} else {
+	} else {
 			newv = ui5r_FromSLong(newv);
 		}
 		ZFLG = Bool2Bit(((si5b)newv) == 0);
@@ -7130,7 +7151,7 @@ LOCALPROC DoCAS(void)
 		CFLG = Bool2Bit(
 			(flgs && ! flgo) || ((NFLG != 0) && ((! flgo) || flgs)));
 
-		V_regs.LazyFlagKind = kLazyFlagsDefault;
+			V_regs.LazyFlagKind = kLazyFlagsDefault;
 
 		if (ZFLG != 0) {
 			ArgSetDstValue(m68k_dreg(ru));
@@ -7400,7 +7421,7 @@ LOCALIPROC DoCodeMulL(void)
 
 		if (extra & 0x400) {
 			m68k_dreg(extra & 7) = dst.hi;
-		} else {
+	} else {
 			if ((dst.lo & 0x80000000) != 0) {
 				if ((dst.hi & 0xffffffff) != 0xffffffff) {
 					VFLG = 1;
@@ -7423,7 +7444,7 @@ LOCALIPROC DoCodeMulL(void)
 		ZFLG = Bool2Bit(Ui6r_IsZero(&dst));
 		NFLG = Bool2Bit(Ui6r_IsNeg(&dst));
 
-		V_regs.LazyFlagKind = kLazyFlagsDefault;
+			V_regs.LazyFlagKind = kLazyFlagsDefault;
 
 		if (extra & 0x400) {
 			m68k_dreg(extra & 7) = dst.hi;
@@ -7485,7 +7506,7 @@ LOCALIPROC DoCodeDivL(void)
 
 			VFLG = NFLG = 1;
 			CFLG = 0;
-		} else {
+	} else {
 			if (sr) {
 				quot = - quot;
 			}
@@ -7501,7 +7522,7 @@ LOCALIPROC DoCodeDivL(void)
 			m68k_dreg(rDr) = rem;
 			m68k_dreg(rDq) = quot;
 		}
-	} else {
+		} else {
 		/* unsigned */
 
 		v2.lo = (ui5b)m68k_dreg(rDq);
@@ -7841,10 +7862,10 @@ LOCALIPROC DoBitField(void)
 		tmp >>= (32 - width);
 	}
 	ZFLG = (tmp == 0);
-	VFLG = 0;
+			VFLG = 0;
 	CFLG = 0;
 
-	V_regs.LazyFlagKind = kLazyFlagsDefault;
+			V_regs.LazyFlagKind = kLazyFlagsDefault;
 
 	newtmp = tmp;
 
@@ -8004,7 +8025,7 @@ LOCALFUNC blnr DecodeModeRegister(ui5b sz)
 			V_regs.ArgAddr.mem = m68k_areg(thereg);
 			if ((thereg == 7) && (sz == 1)) {
 				m68k_areg(thereg) += 2;
-			} else {
+	} else {
 				m68k_areg(thereg) += sz;
 			}
 			IsOk = trueblnr;
@@ -8083,7 +8104,7 @@ LOCALFUNC ui5r GetArgValueL(void)
 
 	if (AKMemory == V_regs.ArgKind) {
 		v = get_long(V_regs.ArgAddr.mem);
-	} else {
+		} else {
 		/* must be AKRegister */
 		v = ui5r_FromSLong(*V_regs.ArgAddr.rga);
 	}
@@ -8154,7 +8175,7 @@ LOCALPROC SetArgValueB(ui5r v)
 {
 	if (AKMemory == V_regs.ArgKind) {
 		put_byte(V_regs.ArgAddr.mem, v);
-	} else {
+		} else {
 		/* must be AKRegister */
 		*V_regs.ArgAddr.rga =
 			(*V_regs.ArgAddr.rga & ~ 0xff) | ((v) & 0xff);
@@ -8427,7 +8448,7 @@ Label_Retry:
 		} else if (0 != (AccFlags & kATTA_ntfymask)) {
 			if (LocalMemAccessNtfy(p)) {
 				goto Label_Retry;
-			} else {
+		} else {
 				Data = 0; /* fail */
 			}
 		} else {
@@ -8522,7 +8543,7 @@ Label_Retry:
 		} else if (0 != (AccFlags & kATTA_ntfymask)) {
 			if (LocalMemAccessNtfy(p)) {
 				goto Label_Retry;
-			} else {
+		} else {
 				Data = 0; /* fail */
 			}
 		} else {
@@ -8706,7 +8727,7 @@ GLOBALPROC SetCyclesRemaining(si5r n)
 	if (V_MaxCyclesToGo >= n) {
 		V_regs.MoreCyclesToGo = 0;
 		V_MaxCyclesToGo = n;
-	} else {
+		} else {
 		V_regs.MoreCyclesToGo = n - V_MaxCyclesToGo;
 	}
 
@@ -8894,7 +8915,7 @@ GLOBALPROC m68k_reset(void)
 	ZFLG = CFLG = NFLG = VFLG = 0;
 
 	V_regs.LazyFlagKind = kLazyFlagsDefault;
-	V_regs.LazyXFlagKind = kLazyFlagsDefault;
+			V_regs.LazyXFlagKind = kLazyFlagsDefault;
 
 	V_regs.ExternalInterruptPending = falseblnr;
 	V_regs.TracePending = falseblnr;

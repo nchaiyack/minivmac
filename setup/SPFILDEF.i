@@ -1,5 +1,7 @@
 /*
 	SPFILDEF.i
+
+	Copyright (C) 2025 Nick Chaiyachakorn
 	Copyright (C) 2012 Paul C. Pratt
 
 	You can redistribute this file and/or modify it under the terms
@@ -285,6 +287,7 @@ static void DoAllSrcFiles(tDoOneCFile p)
 		CSrcFlagsUseHdrIf(gbk_AHM_none != cur_AltHappyMac), nullpr);
 	p("ROMEMDEV", kDepDirCSrc, kCSrcFlgmNone, DoROMEMDEVdepends);
 	p("SCSIEMDV", kDepDirCSrc, kCSrcFlgmNone, nullpr);
+	p("DGFXMDEV", kDepDirCSrc, kCSrcFlgmNone, nullpr);
 	p("SONYEMDV", kDepDirCSrc, kCSrcFlgmNone, nullpr);
 	p("SCRNEMDV", kDepDirCSrc, kCSrcFlgmNone, nullpr);
 	p("VIDEMDEV", kDepDirCSrc, CSrcFlagsUseIfA(EmVidCard), nullpr);

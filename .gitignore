@@ -10,3 +10,9 @@
 /*.exe
 /*.ROM
 
+.DS_Store
+.vscode/settings.json
+extras/disks/608/Z-690-5830-B (Startup).img
+Z-690-5830-B (Startup).img
+tn1136.pdf
+dbglog.txt

@@ -1,6 +1,7 @@
 /*
 	GLOBGLUE.c
 
+	Copyright (C) 2025 Nick Chaiyachakorn
 	Copyright (C) 2003 Bernd Schmidt, Philip Cummins, Paul C. Pratt
 
 	You can redistribute this file and/or modify it under the terms
@@ -12,6 +13,9 @@
 	but WITHOUT ANY WARRANTY; without even the implied warranty of
 	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 	license for more details.
+
+	Changelog:
+	2025-05-20: Nick Chaiyachakorn - Integration of DAZZLERGFX bus master device hooks and tick logic for Macintosh II.
 */
 
 /*
@@ -25,6 +29,11 @@
 */
 
 #include "PICOMMON.h"
+
+#if (CurEmMd == kEmMd_SE)
+IMPORTPROC DGFXMDEV_Reset(void);
+IMPORTFUNC ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, CPTR addr);
+#endif
 
 /*
 	ReportAbnormalID unused 0x111D - 0x11FF
@@ -110,6 +119,9 @@ GLOBALPROC customreset(void)
 		other hardware compenents to
 		later reset the 68000.
 	*/
+#endif
+#if (CurEmMd == kEmMd_SE)
+	DGFXMDEV_Reset();
 #endif
 }
 
@@ -679,7 +691,9 @@ enum {
 #endif
 	kMMDV_SCSI,
 	kMMDV_IWM,
-
+#if (CurEmMd == kEmMd_SE)
+	kMMDV_DGFXMDEV,
+#endif
 	kNumMMDVs
 };
 
@@ -1278,6 +1292,17 @@ LOCALPROC SetUp_address(void)
 	r.Access = kATTA_mmdvmask;
 	r.MMDV = kMMDV_IWM;
 	AddToATTList(&r);
+
+#if (CurEmMd == kEmMd_SE)
+	// Map $600000–$60FFFF to DGFXMDEV device for Macintosh SE
+	r.cmpmask = 0xFF0000; // match $600000–$60FFFF
+	r.cmpvalu = 0x600000;
+	r.usemask = 0x00FFFF; // 64KB
+	r.usebase = nullpr;
+	r.Access = kATTA_mmdvmask;
+	r.MMDV = kMMDV_DGFXMDEV;
+	AddToATTList(&r);
+#endif
 }
 #endif
 
@@ -1528,6 +1553,11 @@ GLOBALFUNC ui5b MMDV_Access(ATTep p, ui5b Data,
 			}
 
 			break;
+#if (CurEmMd == kEmMd_SE)
+		case kMMDV_DGFXMDEV:
+			Data = DGFXMDEV_Access(p, Data, WriteMem, ByteSize, addr);
+			break;
+#endif
 	}
 
 	return Data;

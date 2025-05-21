@@ -14,17 +14,10 @@ fi
         -n "minivmac-3.7-test" \
         -e xcd \
         -t mcar \
-        -m II \
-        -hres 640 -vres 480 -depth 3 \
-        -magnify 1 \
-        -mf 2 \
-        -sound 1 \
-        -sony-sum 1 -sony-tag 1 \
-        -speed 4 -ta 2 -em-cpu 2 -mem 8M \
-        -chr 0 -drc 1 -sss 4 \
-        -fullscreen 0 \
-        -var-fullscreen 1 \
-        -api cco \
+        -m SE \
+        -d d \
+        -log 1 \
+        -dis 1 \
         > setup.sh
 
 # generate makefile and build
