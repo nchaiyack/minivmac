@@ -1,5 +1,50 @@
 # WORKLOG
 
+## 2024-06-09: First Control OSD
+
+### Creation of DGFX Debug OSD
+A new debug overlay, **DGFX Debug OSD**, was implemented to provide real-time tracing of accesses to the DGFXMDEV device in Control Mode.
+
+### Behavior
+- **Control Mode Overlay:** The DGFX OSD is only visible while Control Mode is active and toggled on with the 'G' key.
+- **Key Handling:**
+  - The OSD is toggled by pressing 'G' in Control Mode.
+  - Exiting Control Mode automatically hides the DGFX OSD.
+- **Debug Info:**
+  - The OSD displays the arguments of the last call to `DGFXMDEV_Access()`, including address, data, write/read, byte size, and pointer.
+  - The OSD is redrawn on every key event in Control Mode, ensuring up-to-date debug information.
+
+#### Key Code Locations
+- **OSD Toggle and State:**
+  - `src/CONTROLM.h`: `DoControlModeKey()` (case `MKC_G`)
+  - `src/CONTROLM.h`: `DoLeaveControlMode()` (clears OSD state)
+- **OSD Display Logic:**
+  - `src/CONTROLM.h`: `DrawSpclMode()` (prioritizes DGFX OSD when active)
+  - `src/CONTROLM.h`: `DrawDGFXDebugMode()` and `DrawCellsDGFXDebugModeBody()` (renders OSD)
+- **Debug Variable Updates:**
+  - `src/DGFXMDEV.c`: `DGFXMDEV_Access()` (updates `DGFX_LAST_*` globals)
+
+### Integration
+- **Source Integration:**
+  - OSD rendering and key handling are implemented in `src/CONTROLM.h`.
+  - Debug variable storage and updates are in `src/DGFXMDEV.c` and declared as `extern` in both `src/DGFXMDEV.h` and via forward declarations in `src/CONTROLM.h`.
+- **Overlay System:**
+  - The DGFX OSD is integrated into the Control Mode overlay system, following the same precedence and display logic as other overlays (e.g., Magnify, Interrupt).
+  - The display logic in `DrawSpclMode()` gives priority to the DGFX OSD if both `SpclModeDGFXDebug` and `SpclModeControl` are active:
+    ```c
+    if (SpecialModeTst(SpclModeDGFXDebug) && SpecialModeTst(SpclModeControl)) {
+        DrawDGFXDebugMode();
+    }
+    ```
+- **Debug Variable Access:**
+  - All DGFX debug variables are maintained in `DGFXMDEV` and accessed via forward `extern` declarations in `CONTROLM.h`, avoiding transitive include issues.
+- **State Management:**
+  - The DGFX OSD state (`SpclModeDGFXDebug`) is cleared automatically when leaving Control Mode (`DoLeaveControlMode()`), ensuring consistent overlay behavior.
+- **Logging Removal:**
+  - All logging and `dolog`-related code has been removed from `DGFXMDEV` for clarity and maintainability.
+- **Implementation Notes:**
+  - The implementation follows Mini vMac conventions for overlays and debug displays, making future maintenance and extension straightforward.
+
 ## 05-21-25: SE PDS device: reserved page is constant DEADBEEF
 
 ### Creation of DGFXMDEV

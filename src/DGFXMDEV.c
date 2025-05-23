@@ -19,7 +19,14 @@
 #define DGFXMDEV_MAGIC_TOP    0x60FFFF
 #define DGFXMDEV_MAGIC_BOTTOM 0x600000
 #define DGFXMDEV_MAGIC_VALUE  0xDEADBEEF
-#define DGFXMDEV_dolog 1
+
+/* OSD debug variables that we'll define here. */
+ui5b DGFX_LAST_DATA = 0;
+blnr DGFX_LAST_WRITEMEM = 0;
+blnr DGFX_LAST_BYTESIZE = 0;
+ui4r DGFX_LAST_ADDR = 0;
+
+/* Implementation. */
 
 void DGFXMDEV_Reset(void) {
     // Reset any internal state here if needed in the future
@@ -30,12 +37,12 @@ void DGFXMDEV_Tick(void) {
 } 
 
 ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, CPTR addr) {
-#if DGFXMDEV_dolog && 1
-    dbglog_Access("DGFXMDEV_Access", addr, WriteMem);
-    dbglog_StartLine();
-    dbglog_writeCStr("  ByteSize: "); dbglog_writeHex(ByteSize);
-    dbglog_writeCStr("  addr: "); dbglog_writeHex(addr);
-#endif
+    /* Set OSD debug globals. */
+    DGFX_LAST_DATA = Data;
+    DGFX_LAST_WRITEMEM = WriteMem;
+    DGFX_LAST_BYTESIZE = ByteSize;
+    DGFX_LAST_ADDR = addr;
+
     if (addr < DGFXMDEV_MAGIC_BOTTOM || addr > DGFXMDEV_MAGIC_TOP) {
         return 0;
     }
@@ -45,41 +52,21 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, CPTR addr
     // Calculate 16-bit word index
     ui5b word16_index = (addr - DGFXMDEV_MAGIC_BOTTOM) >> 1;
     ui5b val16 = (word16_index & 1) ? 0xBEEF : 0xDEAD;
-#if DGFXMDEV_dolog && 1
-    dbglog_writeCStr("  word16_index: "); dbglog_writeHex(word16_index);
-    dbglog_writeCStr("  val16: "); dbglog_writeHex(val16);
-#endif
     // 32-bit aligned read (long, big-endian)
     if (!ByteSize && (addr & 3) == 0) {
         ui5b next_val16 = ((word16_index + 1) & 1) ? 0xBEEF : 0xDEAD;
         ui5b ret = (val16 << 16) | (next_val16 & 0xFFFF);
-#if DGFXMDEV_dolog && 1
-        dbglog_writeCStr("  ret32: "); dbglog_writeHex(ret);
-        dbglog_writeReturn();
-#endif
         return ret;
     }
     // 16-bit aligned read (word, big-endian)
     if (!ByteSize && (addr & 1) == 0) {
-#if DGFXMDEV_dolog && 1
-        dbglog_writeCStr("  ret16: "); dbglog_writeHex(val16);
-        dbglog_writeReturn();
-#endif
         return val16;
     }
     // 8-bit read (byte, big-endian)
     if (ByteSize) {
         int byte_in_word = 1 - (addr & 1); // 0 = high, 1 = low
         ui5b ret = (val16 >> (8 * byte_in_word)) & 0xFF;
-#if DGFXMDEV_dolog && 1
-        dbglog_writeCStr("  ret8: "); dbglog_writeHex(ret);
-        dbglog_writeReturn();
-#endif
         return ret;
     }
-#if DGFXMDEV_dolog && 1
-    dbglog_writeCStr("  ret: 0");
-    dbglog_writeReturn();
-#endif
     return 0;
 } 

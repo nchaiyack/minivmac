@@ -24,4 +24,10 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, CPTR addr
 void DGFXMDEV_Reset(void);
 void DGFXMDEV_Tick(void);
 
+/* Debug variables to be displayed in DGFX debug OSD. */
+extern ui5b DGFX_LAST_DATA;
+extern blnr DGFX_LAST_WRITEMEM;
+extern blnr DGFX_LAST_BYTESIZE;
+extern ui4r DGFX_LAST_ADDR;
+
 #endif // DGFXMDEV_H 

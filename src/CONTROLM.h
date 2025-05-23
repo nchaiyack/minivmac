@@ -1,6 +1,10 @@
 /*
 	CONTROLM.h
 
+	Copyright (C) 2025 Nick Chaiyachakorn
+		Changelog:
+		2025-05-23: Nick Chaiyachakorn - Added DGFX debug OSD mode.
+
 	Copyright (C) 2007 Paul C. Pratt
 
 	You can redistribute this file and/or modify it under the terms
@@ -13,6 +17,17 @@
 	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 	license for more details.
 */
+
+
+/*
+	Forward declaration for DGFX debug OSD.
+*/
+#define HAS_DGFX 1
+#if HAS_DGFX
+GLOBALFUNC void DrawCellsDGFXDebugModeBody(void);
+GLOBALFUNC void DrawDGFXDebugMode(void);
+GLOBALFUNC void DoDGFXDebugModeKey(ui3r key);
+#endif
 
 /*
 	CONTROL Mode
@@ -38,6 +53,9 @@ enum {
 	SpclModeMessage,
 #if UseControlKeys
 	SpclModeControl,
+#endif
+#if HAS_DGFX == 1
+	SpclModeDGFXDebug, // DGFX debug OSD mode
 #endif
 
 	kNumSpclModes
@@ -541,6 +559,9 @@ LOCALPROC DoEnterControlMode(void)
 LOCALPROC DoLeaveControlMode(void)
 {
 	SpecialModeClr(SpclModeControl);
+#if HAS_DGFX == 1
+	SpecialModeClr(SpclModeDGFXDebug); // Hide DGFX OSD when leaving Control Mode
+#endif
 	CurControlMode = kCntrlModeOff;
 	NeedWholeScreenDraw = trueblnr;
 }
@@ -743,6 +764,16 @@ LOCALPROC DoControlModeKey(ui3r key)
 					RequestIthDisk = 9;
 					break;
 #endif
+#if HAS_DGFX == 1
+				case MKC_G:
+					if (SpecialModeTst(SpclModeDGFXDebug)) {
+						SpecialModeClr(SpclModeDGFXDebug);
+					} else {
+						SpecialModeSet(SpclModeDGFXDebug);
+					}
+					NeedWholeScreenDraw = trueblnr;
+					break;
+#endif
 			}
 			break;
 #if WantEnblCtrlRst
@@ -913,6 +944,9 @@ LOCALPROC DrawCellsControlModeBody(void)
 			DrawCellsOneLineStr(kStrHowToLeaveControl);
 			DrawCellsOneLineStr(kStrHowToPickACommand);
 			DrawCellsBlankLine();
+#if HAS_DGFX == 1
+			DrawCellsKeyCommand("G", "DazzlerGFX debug display");
+#endif
 			DrawCellsKeyCommand("A", kStrCmdAbout);
 #if NeedRequestInsertDisk
 			DrawCellsKeyCommand("O", kStrCmdOpenDiskImage);
@@ -1086,6 +1120,11 @@ LOCALPROC DemoModeSecondNotify(void)
 
 LOCALPROC DrawSpclMode(void)
 {
+#if HAS_DGFX == 1
+	if (SpecialModeTst(SpclModeDGFXDebug) && SpecialModeTst(SpclModeControl)) {
+		DrawDGFXDebugMode();
+	} else
+#endif
 #if UseControlKeys
 	if (SpecialModeTst(SpclModeControl)) {
 		DrawControlMode();
@@ -1292,6 +1331,11 @@ LOCALPROC Keyboard_UpdateKeyMap2(ui3r key, blnr down)
 				DoActvCodeModeKey(key);
 			} else
 #endif
+#if HAS_DGFX == 1
+			if (SpecialModeTst(SpclModeDGFXDebug)) {
+				DoDGFXDebugModeKey(key);
+			} else
+#endif
 			{
 			}
 		} /* else if not down ignore */
@@ -1421,3 +1465,52 @@ LOCALFUNC blnr WaitForRom(void)
 
 	return trueblnr;
 }
+
+/* DGFX debug OSD. */
+#if HAS_DGFX
+// Forward declarations for DGFX debug OSD globals
+extern ui5b DGFX_LAST_DATA;
+extern blnr DGFX_LAST_WRITEMEM;
+extern blnr DGFX_LAST_BYTESIZE;
+extern ui4r DGFX_LAST_ADDR;
+
+GLOBALFUNC void DrawCellsDGFXDebugModeBody(void) {
+	char line[64];
+	// Show last access address
+	sprintf(line, "Last addr: %08X", (unsigned int)DGFX_LAST_ADDR);
+	DrawCellsBeginLine();
+	DrawCellsFromStr(line);
+	DrawCellsEndLine();
+
+	sprintf(line, "Data: %08lX", (unsigned long)DGFX_LAST_DATA);
+	DrawCellsBeginLine();
+	DrawCellsFromStr(line);
+	DrawCellsEndLine();
+
+	sprintf(line, "WriteMem: %d", (int)DGFX_LAST_WRITEMEM);
+	DrawCellsBeginLine();
+	DrawCellsFromStr(line);
+	DrawCellsEndLine();
+
+	sprintf(line, "ByteSize: %d", (int)DGFX_LAST_BYTESIZE);
+	DrawCellsBeginLine();
+	DrawCellsFromStr(line);
+	DrawCellsEndLine();
+
+	DrawCellsBeginLine();
+	DrawCellsFromStr(line);
+	DrawCellsEndLine();
+}
+
+GLOBALFUNC void DrawDGFXDebugMode(void) {
+	DrawSpclMode0("DazzlerGFX Debug Mode", DrawCellsDGFXDebugModeBody);
+}
+
+GLOBALFUNC void DoDGFXDebugModeKey(ui3r key)
+{
+	if (MKC_G == key) {
+		SpecialModeClr(SpclModeDGFXDebug);
+		NeedWholeScreenDraw = trueblnr;
+	}
+}
+#endif
