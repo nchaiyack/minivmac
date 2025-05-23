@@ -299,6 +299,7 @@ static void DoAllSrcFiles(tDoOneCFile p)
 	p("PMUEMDEV", kDepDirCSrc, CSrcFlagsUseIfA(EmPMU), nullpr);
 	p("ASCEMDEV", kDepDirCSrc, CSrcFlagsUseIfA(EmASC), nullpr);
 	p("SNDEMDEV", kDepDirCSrc, CSrcFlagsUseIfA(EmClassicSnd), nullpr);
+	p("mpack", kDepDirCSrc, kCSrcFlgmNone, nullpr);
 	p("PROGMAIN", kDepDirCSrc, kCSrcFlgmNone, nullpr);
 }
 

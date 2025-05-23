@@ -16,9 +16,17 @@
 
 #include "DGFXMDEV.h"
 
-#define DGFXMDEV_MAGIC_TOP    0x60FFFF
-#define DGFXMDEV_MAGIC_BOTTOM 0x600000
-#define DGFXMDEV_MAGIC_VALUE  0xDEADBEEF
+/* Our command-passing schema of choice... */
+#include "mpack.h"
+
+/* Backing memory.*/
+#define DGFXMDEV_WINDOW_SIZE ((DGFXMDEV_WINDOW_TOP - DGFXMDEV_WINDOW_BOTTOM) + 1)
+ui5b DGFXMDEV_MEM[(DGFXMDEV_WINDOW_SIZE + 1) / sizeof(ui5b)] = {0};
+
+/* State machine. */
+ui5b DGFX_STATE = DGFX_IDLE;
+
+
 
 /* OSD debug variables that we'll define here. */
 ui5b DGFX_LAST_DATA = 0;
@@ -30,10 +38,40 @@ ui4r DGFX_LAST_ADDR = 0;
 
 void DGFXMDEV_Reset(void) {
     // Reset any internal state here if needed in the future
+    DGFX_STATE = DGFX_IDLE;
+    DGFXMDEV_MEM[0] = 0;
+    for (size_t i = 1; i < (sizeof(DGFXMDEV_MEM)/sizeof(DGFXMDEV_MEM[0])); ++i) {
+        DGFXMDEV_MEM[i] = 0xF00F;
+    }
 }
 
 void DGFXMDEV_Tick(void) {
-    // TODO: Implement bus master tick logic here
+    // If we're in processing mode, search every first of two words from
+    // DGFXMDEV_WINDOW_BOTTOM + 1 to DGFXMDEV_COMMANDLIST_TOP for the first nonzero address.
+    if (DGFX_STATE == DGFX_PROCESSING) {
+        ui5b data = 0;
+        for (ui5b i = 1; i <= (DGFXMDEV_COMMANDLIST_TOP - DGFXMDEV_WINDOW_BOTTOM); i += 2) {
+            data = DGFXMDEV_MEM[i];
+            if (data != 0) {
+                // If so, the second of two words is the length of the command buffer.
+                ui5b length = DGFXMDEV_MEM[i + 1];
+                // Malloc a buffer of size length, and copy [data, ..., data + length - 1].
+                ui5b *cmdBuffer = (ui5b *)malloc(length);
+                for (ui5b j = 0; j < length; j++) {
+                    cmdBuffer[j] = DGFXMDEV_MEM[i + 2 + j];
+                }
+
+                // Don't forget to free the buffer.
+                free(cmdBuffer);
+            }
+        }
+        // If there are no more commands, we're done.
+        // Reset the mailflag.
+        if (data != 0) {
+            DGFXMDEV_ClearMailflag();
+            DGFX_STATE = DGFX_IDLE;
+        }
+    }
 } 
 
 ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, CPTR addr) {
@@ -43,30 +81,60 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, CPTR addr
     DGFX_LAST_BYTESIZE = ByteSize;
     DGFX_LAST_ADDR = addr;
 
-    if (addr < DGFXMDEV_MAGIC_BOTTOM || addr > DGFXMDEV_MAGIC_TOP) {
+    /* Check the mailflag. If it's set, we're in PROCESSING mode. 
+        DGFXMDEV_Tick will handle the rest.  */
+    if (DGFXMDEV_CheckMailflag()) {
+        DGFX_STATE = DGFX_PROCESSING;
+    }
+
+    if (addr < DGFXMDEV_WINDOW_BOTTOM || addr > DGFXMDEV_WINDOW_TOP) {
         return 0;
     }
+    /* Update the backing memory DGFXMDEV_MEM. */
+
+    size_t offset = addr - DGFXMDEV_WINDOW_BOTTOM;
+    size_t word_index = offset / sizeof(ui5b);
+    size_t byte_index = offset % sizeof(ui5b);
+
     if (WriteMem) {
+        if (ByteSize) {
+            // 8-bit write
+            ((ui3b *)&DGFXMDEV_MEM[word_index])[byte_index] = (ui3b)Data;
+        } else if ((addr & 1) == 0) {
+            // 16-bit write (word, big-endian)
+            ((ui4b *)&DGFXMDEV_MEM[word_index])[byte_index / 2] = (ui4b)Data;
+        } else if ((addr & 3) == 0) {
+            // 32-bit write (long, big-endian)
+            DGFXMDEV_MEM[word_index] = Data;
+        }
         return 0;
     }
-    // Calculate 16-bit word index
-    ui5b word16_index = (addr - DGFXMDEV_MAGIC_BOTTOM) >> 1;
-    ui5b val16 = (word16_index & 1) ? 0xBEEF : 0xDEAD;
-    // 32-bit aligned read (long, big-endian)
-    if (!ByteSize && (addr & 3) == 0) {
-        ui5b next_val16 = ((word16_index + 1) & 1) ? 0xBEEF : 0xDEAD;
-        ui5b ret = (val16 << 16) | (next_val16 & 0xFFFF);
-        return ret;
-    }
-    // 16-bit aligned read (word, big-endian)
-    if (!ByteSize && (addr & 1) == 0) {
-        return val16;
-    }
-    // 8-bit read (byte, big-endian)
+
+    // Read
     if (ByteSize) {
-        int byte_in_word = 1 - (addr & 1); // 0 = high, 1 = low
-        ui5b ret = (val16 >> (8 * byte_in_word)) & 0xFF;
-        return ret;
+        // 8-bit read
+        return ((ui3b *)&DGFXMDEV_MEM[word_index])[byte_index];
+    } else if ((addr & 1) == 0) {
+        // 16-bit read (word, big-endian)
+        return ((ui4b *)&DGFXMDEV_MEM[word_index])[byte_index / 2];
+    } else if ((addr & 3) == 0) {
+        // 32-bit read (long, big-endian)
+        return DGFXMDEV_MEM[word_index];
     }
     return 0;
 } 
+
+/* Command-passing. */
+
+ui5b DGFXMDEV_CheckMailflag(void) {
+    // Check to see whether the byte at DGFXMDEV_WINDOW_TOP is 0x01.
+    ui5b addr = DGFXMDEV_WINDOW_BOTTOM;
+    ui5b data = DGFXMDEV_Access(nullpr, 0, falseblnr, trueblnr, addr);
+    return data == 0x01;
+}
+
+void DGFXMDEV_ClearMailflag(void) {
+    // Clear the byte at DGFXMDEV_WINDOW_TOP to 0x00.
+    ui5b addr = DGFXMDEV_WINDOW_BOTTOM;
+    DGFXMDEV_Access(nullpr, 0, trueblnr, trueblnr, addr);
+}

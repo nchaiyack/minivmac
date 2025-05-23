@@ -1469,37 +1469,55 @@ LOCALFUNC blnr WaitForRom(void)
 /* DGFX debug OSD. */
 #if HAS_DGFX
 // Forward declarations for DGFX debug OSD globals
+extern ui5b DGFX_STATE;
 extern ui5b DGFX_LAST_DATA;
 extern blnr DGFX_LAST_WRITEMEM;
 extern blnr DGFX_LAST_BYTESIZE;
 extern ui4r DGFX_LAST_ADDR;
+extern ui5b DGFXMDEV_MEM[];
 
 GLOBALFUNC void DrawCellsDGFXDebugModeBody(void) {
 	char line[64];
+
+	// Show state machine status.
+	sprintf(line, "DGFX_STATE: %ld", (long)DGFX_STATE);
+	DrawCellsBeginLine();
+	DrawCellsFromStr(line);
+	DrawCellsEndLine();
+
 	// Show last access address
-	sprintf(line, "Last addr: %08X", (unsigned int)DGFX_LAST_ADDR);
+	sprintf(line, "DGFX_Access: Last addr: %08X", (unsigned int)DGFX_LAST_ADDR);
 	DrawCellsBeginLine();
 	DrawCellsFromStr(line);
 	DrawCellsEndLine();
 
-	sprintf(line, "Data: %08lX", (unsigned long)DGFX_LAST_DATA);
+	sprintf(line, "DGFX_Access: Data: %08lX", (unsigned long)DGFX_LAST_DATA);
 	DrawCellsBeginLine();
 	DrawCellsFromStr(line);
 	DrawCellsEndLine();
 
-	sprintf(line, "WriteMem: %d", (int)DGFX_LAST_WRITEMEM);
+	sprintf(line, "DGFX_Access: WriteMem: %d", (int)DGFX_LAST_WRITEMEM);
 	DrawCellsBeginLine();
 	DrawCellsFromStr(line);
 	DrawCellsEndLine();
 
-	sprintf(line, "ByteSize: %d", (int)DGFX_LAST_BYTESIZE);
+	sprintf(line, "DGFX_Access: ByteSize: %d", (int)DGFX_LAST_BYTESIZE);
 	DrawCellsBeginLine();
 	DrawCellsFromStr(line);
 	DrawCellsEndLine();
 
-	DrawCellsBeginLine();
-	DrawCellsFromStr(line);
-	DrawCellsEndLine();
+	// Show command stack entries (addr/length pairs)
+	for (int i = 1; i <= 8; i += 2) {
+		sprintf(line, "Command Stack: Cmd %d addr: %08lX", (i+1)/2, (unsigned long)DGFXMDEV_MEM[i]);
+		DrawCellsBeginLine();
+		DrawCellsFromStr(line);
+		DrawCellsEndLine();
+
+		sprintf(line, "Command Stack: Cmd %d length: %08lX", (i+1)/2, (unsigned long)DGFXMDEV_MEM[i+1]); 
+		DrawCellsBeginLine();
+		DrawCellsFromStr(line);
+		DrawCellsEndLine();
+	}
 }
 
 GLOBALFUNC void DrawDGFXDebugMode(void) {

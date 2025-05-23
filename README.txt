@@ -19,3 +19,8 @@ MnvM_b37 is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 license for more details.
+
+Other licenses
+==============
+This project uses the 'mpack' library (https://github.com/ludocode/mpack), which is licensed under the MIT License. See deps/mpack/LICENSE for details.
+

@@ -1,6 +1,42 @@
 # WORKLOG
 
-## 2024-06-09: First Control OSD
+
+## 05-23-25: Backing MMIO buffer; command processing loop skeleton; MessagePack chosen as wire messaging format; first pipeline defs
+
+### Backing MMIO Buffer
+- **Implemented a global memory buffer (`DGFXMDEV_MEM`)** to back the DGFXMDEV device's memory-mapped I/O (MMIO) window, covering the address range from `DGFXMDEV_WINDOW_BOTTOM` to `DGFXMDEV_WINDOW_TOP`.
+- **Buffer Definition**: The buffer is defined as `ui5b DGFXMDEV_MEM[...]` in `DGFXMDEV.c` and declared as `extern` in `DGFXMDEV.h` for cross-module access.
+- **Initialization**: In `DGFXMDEV_Reset()`, the first word is set to 0, and the rest are initialized to `0xF00F` for debugging visibility.
+- **Access Logic**: All reads and writes to the MMIO window are routed through `DGFXMDEV_Access()`, which uses codebase-idiomatic types (`ui3b`, `ui4b`, `ui5b`) for byte, word, and long accesses, respectively. The function signature is:
+  ```c
+  ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, CPTR addr);
+  ```
+
+### Command Processing Loop Skeleton
+- **Processing State Machine**: Introduced a state machine for DGFXMDEV, with states like `DGFX_IDLE` and `DGFX_PROCESSING`, to manage command processing.
+- **Command Search Loop**: In `DGFXMDEV_Tick()`, implemented a loop that scans the MMIO buffer for command descriptors (address/length pairs), searching every first of two words for a nonzero address.
+- **Command Buffer Handling**: When a command is found, a buffer is allocated, and the command data is copied from the MMIO buffer for further processing.
+- **Skeleton for Message Parsing**: The loop sets up the infrastructure for parsing and executing commands, but actual command execution is deferred to future work.
+- **Debug Display**: the OSD now displays the first 4 command buffer address/list pairs.
+
+### MessagePack Chosen as Wire Messaging Format
+- **Rationale**: Decided to use MessagePack for all over-the-wire communication between the Macintosh OS and DazzlerGFX, due to its compactness, speed, and cross-language support.
+- **Integration**: Added `src/mpack.c` and `src/mpack.h` (amalgamated version) to the codebase. All command parsing in DGFXMDEV now uses MessagePack APIs.
+
+### First Pipeline Definitions
+- **Pipeline Header**: Created `DGFXMDEV_Pipeline.h` to house the blit spec and related pipeline definitions, separating them from the main device header for modularity.
+- **Blit Spec Struct**: Defined the `DGFX_BlitSpec` struct to describe blit (block image transfer) operations, with fields for destination address, width, height, and stride:
+  ```c
+  typedef struct {
+      ui5b destAddr;
+      ui5b width;
+      ui5b height;
+      ui5b stride;
+  } DGFX_BlitSpec;
+  ```
+- **Array Declaration**: Declared an array `DGFX_BLIT_SPEC[8]` for use as a pipeline of blit operations, with the definition to be provided in the implementation file.
+
+## 05-23-25 First Control OSD
 
 ### Creation of DGFX Debug OSD
 A new debug overlay, **DGFX Debug OSD**, was implemented to provide real-time tracing of accesses to the DGFXMDEV device in Control Mode.
@@ -125,4 +161,4 @@ A new device, **DGFXMDEV**, was created to emulate a custom SE PDS (Processor Di
 - **Testing and Logging:**
   - The implementation of `DGFXMDEV_Access()` includes debug logging (guarded by the `DGFXMDEV_dolog` macro) to trace accesses and verify correct operation during development.
 
-This device serves as a foundation for further SE PDS device emulation and provides a simple example of memory-mapped device integration in the Mini vMac codebase. 
+This device serves as a foundation for further SE PDS device emulation and provides a simple example of memory-mapped device integration in the Mini vMac codebase.
