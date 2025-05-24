@@ -32,7 +32,8 @@ ui5b DGFX_STATE = DGFX_IDLE;
 ui5b DGFX_LAST_DATA = 0;
 blnr DGFX_LAST_WRITEMEM = 0;
 blnr DGFX_LAST_BYTESIZE = 0;
-ui4r DGFX_LAST_ADDR = 0;
+ui5b DGFX_LAST_ADDR = 0;
+const char* DGFX_LAST_MESSAGE = "No message yet";
 
 /* Implementation. */
 
@@ -43,12 +44,14 @@ void DGFXMDEV_Reset(void) {
     for (size_t i = 1; i < (sizeof(DGFXMDEV_MEM)/sizeof(DGFXMDEV_MEM[0])); ++i) {
         DGFXMDEV_MEM[i] = 0xF00F;
     }
+    DGFX_LAST_MESSAGE = "Device reset complete";
 }
 
 void DGFXMDEV_Tick(void) {
     // If we're in processing mode, search every first of two words from
     // DGFXMDEV_WINDOW_BOTTOM + 1 to DGFXMDEV_COMMANDLIST_TOP for the first nonzero address.
     if (DGFX_STATE == DGFX_PROCESSING) {
+        DGFX_LAST_MESSAGE = "Processing commands";
         ui5b data = 0;
         for (ui5b i = 1; i <= (DGFXMDEV_COMMANDLIST_TOP - DGFXMDEV_WINDOW_BOTTOM); i += 2) {
             data = DGFXMDEV_MEM[i];
@@ -70,11 +73,14 @@ void DGFXMDEV_Tick(void) {
         if (data != 0) {
             DGFXMDEV_ClearMailflag();
             DGFX_STATE = DGFX_IDLE;
+            DGFX_LAST_MESSAGE = "Command processing complete";
         }
     }
 } 
 
-ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, CPTR addr) {
+ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr) {
+    DGFX_LAST_MESSAGE = "Access called";
+
     /* Set OSD debug globals. */
     DGFX_LAST_DATA = Data;
     DGFX_LAST_WRITEMEM = WriteMem;
@@ -85,13 +91,10 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, CPTR addr
         DGFXMDEV_Tick will handle the rest.  */
     if (DGFXMDEV_CheckMailflag()) {
         DGFX_STATE = DGFX_PROCESSING;
+        DGFX_LAST_MESSAGE = "Mailflag detected, starting processing";
     }
 
-    if (addr < DGFXMDEV_WINDOW_BOTTOM || addr > DGFXMDEV_WINDOW_TOP) {
-        return 0;
-    }
     /* Update the backing memory DGFXMDEV_MEM. */
-
     size_t offset = addr - DGFXMDEV_WINDOW_BOTTOM;
     size_t word_index = offset / sizeof(ui5b);
     size_t byte_index = offset % sizeof(ui5b);
@@ -128,13 +131,10 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, CPTR addr
 
 ui5b DGFXMDEV_CheckMailflag(void) {
     // Check to see whether the byte at DGFXMDEV_WINDOW_TOP is 0x01.
-    ui5b addr = DGFXMDEV_WINDOW_BOTTOM;
-    ui5b data = DGFXMDEV_Access(nullpr, 0, falseblnr, trueblnr, addr);
-    return data == 0x01;
+    return ((ui3b *)DGFXMDEV_MEM)[0] == 0x01;
 }
 
 void DGFXMDEV_ClearMailflag(void) {
     // Clear the byte at DGFXMDEV_WINDOW_TOP to 0x00.
-    ui5b addr = DGFXMDEV_WINDOW_BOTTOM;
-    DGFXMDEV_Access(nullpr, 0, trueblnr, trueblnr, addr);
+    ((ui3b *)DGFXMDEV_MEM)[0] = 0x00;
 }

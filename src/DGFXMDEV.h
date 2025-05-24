@@ -32,7 +32,7 @@ extern ui5b DGFX_STATE;
 #define DGFXMDEV_COMMANDLIST_TOP 0x600000 + 63
 #define DGFXMDEV_MAGIC_VALUE  0xDEADBEEF
 
-ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, CPTR addr);
+ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr);
 void DGFXMDEV_Reset(void);
 void DGFXMDEV_Tick(void);
 
@@ -45,7 +45,8 @@ void DGFXMDEV_ClearMailflag(void);
 extern ui5b DGFX_LAST_DATA;
 extern blnr DGFX_LAST_WRITEMEM;
 extern blnr DGFX_LAST_BYTESIZE;
-extern ui4r DGFX_LAST_ADDR;
+extern ui5b DGFX_LAST_ADDR;
+extern const char* DGFX_LAST_MESSAGE;
 
 
 #endif // DGFXMDEV_H 

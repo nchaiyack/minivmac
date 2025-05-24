@@ -1473,11 +1473,18 @@ extern ui5b DGFX_STATE;
 extern ui5b DGFX_LAST_DATA;
 extern blnr DGFX_LAST_WRITEMEM;
 extern blnr DGFX_LAST_BYTESIZE;
-extern ui4r DGFX_LAST_ADDR;
+extern ui5b DGFX_LAST_ADDR;
 extern ui5b DGFXMDEV_MEM[];
+extern const char* DGFX_LAST_MESSAGE;
 
 GLOBALFUNC void DrawCellsDGFXDebugModeBody(void) {
 	char line[64];
+
+	// Show last message at the top
+	sprintf(line, "Last message: %s", DGFX_LAST_MESSAGE);
+	DrawCellsBeginLine();
+	DrawCellsFromStr(line);
+	DrawCellsEndLine();
 
 	// Show state machine status.
 	sprintf(line, "DGFX_STATE: %ld", (long)DGFX_STATE);
