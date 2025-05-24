@@ -26,11 +26,21 @@
 #define DGFX_PROCESSING 2
 extern ui5b DGFX_STATE;
 
-/* Addresses of interest. */
-#define DGFXMDEV_WINDOW_TOP    0x60FFFF
-#define DGFXMDEV_WINDOW_BOTTOM 0x600000
-#define DGFXMDEV_COMMANDLIST_TOP 0x600000 + 63
-#define DGFXMDEV_MAGIC_VALUE  0xDEADBEEF
+/* Memory window boundaries (matches memory_map.md). */
+#define DGFXMDEV_WINDOW_BOTTOM        0x600000
+#define DGFXMDEV_WINDOW_TOP           0x60FFFF
+
+/* Section boundaries within the memory window. */
+#define DGFXMDEV_MAILFLAG_START       0x600000
+#define DGFXMDEV_MAILFLAG_END         0x600003
+#define DGFXMDEV_COMMANDLIST_START    0x600004
+#define DGFXMDEV_COMMANDLIST_END      0x60003B
+#define DGFXMDEV_UNUSED_START         0x60003C
+#define DGFXMDEV_UNUSED_END           0x60003F
+#define DGFXMDEV_CLIENT_MEM_START     0x600040
+#define DGFXMDEV_CLIENT_MEM_END       0x60FFEF
+#define DGFXMDEV_SPECIAL_START        0x60FFF0
+#define DGFXMDEV_SPECIAL_END          0x60FFFF
 
 ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr);
 void DGFXMDEV_Reset(void);

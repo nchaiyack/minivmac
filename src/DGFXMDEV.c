@@ -39,7 +39,9 @@ const char* DGFX_LAST_MESSAGE = "No message yet";
 void DGFXMDEV_Reset(void) {
     // Reset any internal state here if needed in the future
     DGFX_STATE = DGFX_IDLE;
-    DGFXMDEV_MEM[0] = 0;
+    // Initialize the mailflag register (first word) to DGFX_IDLE
+    DGFXMDEV_MEM[0] = DGFX_IDLE;
+    // Initialize the rest of memory with a pattern for debugging
     for (size_t i = 1; i < (sizeof(DGFXMDEV_MEM)/sizeof(DGFXMDEV_MEM[0])); ++i) {
         DGFXMDEV_MEM[i] = 0xF00F;
     }
@@ -47,33 +49,49 @@ void DGFXMDEV_Reset(void) {
 }
 
 void DGFXMDEV_Tick(void) {
-    // If we're in processing mode, search every first of two words from
-    // DGFXMDEV_WINDOW_BOTTOM + 1 to DGFXMDEV_COMMANDLIST_TOP for the first nonzero address.
+    // If we're in processing mode, scan the command/result buffer array for commands to process.
+    // The buffer array starts at DGFXMDEV_COMMANDLIST_START (0x600004) and can hold up to 7 pairs.
+    // Each pair is (32-bit address, 32-bit length), terminated by (0, 0).
     if (DGFX_STATE == DGFX_PROCESSING) {
         DGFX_LAST_MESSAGE = "Processing commands";
-        ui5b data = 0;
-        for (ui5b i = 1; i <= (DGFXMDEV_COMMANDLIST_TOP - DGFXMDEV_WINDOW_BOTTOM); i += 2) {
-            data = DGFXMDEV_MEM[i];
-            if (data != 0) {
-                // If so, the second of two words is the length of the command buffer.
-                ui5b length = DGFXMDEV_MEM[i + 1];
-                // Malloc a buffer of size length, and copy [data, ..., data + length - 1].
-                ui5b *cmdBuffer = (ui5b *)malloc(length);
-                for (ui5b j = 0; j < length; j++) {
-                    cmdBuffer[j] = DGFXMDEV_MEM[i + 2 + j];
-                }
+        
+        // Calculate the starting word index in DGFXMDEV_MEM for the command list
+        size_t cmdlist_offset = DGFXMDEV_COMMANDLIST_START - DGFXMDEV_WINDOW_BOTTOM;
+        size_t cmdlist_word_start = cmdlist_offset / sizeof(ui5b);
+        
+        // Scan up to 7 (address, length) pairs
+        for (int pair_idx = 0; pair_idx < 7; pair_idx++) {
+            size_t addr_word_idx = cmdlist_word_start + (pair_idx * 2);
+            size_t len_word_idx = cmdlist_word_start + (pair_idx * 2) + 1;
+            
+            ui5b cmd_addr = DGFXMDEV_MEM[addr_word_idx];
+            ui5b cmd_length = DGFXMDEV_MEM[len_word_idx];
+            
+            // Terminator found (0, 0) - stop processing
+            if (cmd_addr == 0 && cmd_length == 0) {
+                break;
+            }
+            
+            // Process this command buffer if it's non-zero
+            if (cmd_addr != 0) {
+                // Malloc a buffer of size cmd_length, and copy the command data
+                ui5b *cmdBuffer = (ui5b *)malloc(cmd_length);
+                if (cmdBuffer) {
+                    for (ui5b j = 0; j < cmd_length; j++) {
+                        cmdBuffer[j] = DGFXMDEV_MEM[(cmd_addr - DGFXMDEV_WINDOW_BOTTOM) / sizeof(ui5b) + j];
+                    }
 
-                // Don't forget to free the buffer.
-                free(cmdBuffer);
+                    // TODO: Process the command buffer here
+                    // For now, just free it
+                    free(cmdBuffer);
+                }
             }
         }
-        // If there are no more commands, we're done.
-        // Reset the mailflag.
-        if (data != 0) {
-            DGFXMDEV_ClearMailflag();
-            DGFX_STATE = DGFX_IDLE;
-            DGFX_LAST_MESSAGE = "Command processing complete";
-        }
+        
+        // Commands processed, transition back to IDLE
+        DGFXMDEV_ClearMailflag();
+        DGFX_STATE = DGFX_IDLE;
+        DGFX_LAST_MESSAGE = "Command processing complete";
     }
 } 
 
@@ -89,6 +107,24 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr
     DGFX_LAST_BYTESIZE = ByteSize;
     DGFX_LAST_ADDR = addr;
 
+    /* Update the backing memory DGFXMDEV_MEM. */
+    size_t offset = addr - DGFXMDEV_WINDOW_BOTTOM;
+    size_t word_index = offset / sizeof(ui5b);
+    size_t byte_index = offset % sizeof(ui5b);
+
+    if (WriteMem) {
+        if (ByteSize) {
+            // 8-bit write
+            ((ui3b *)&DGFXMDEV_MEM[word_index])[byte_index] = (ui3b)Data;
+        } else if ((addr & 1) == 0) {
+            // 16-bit write (word, big-endian)
+            ((ui4b *)&DGFXMDEV_MEM[word_index])[byte_index / 2] = (ui4b)Data;
+        } else if ((addr & 3) == 0) {
+            // 32-bit write (long, big-endian)
+            DGFXMDEV_MEM[word_index] = Data;
+        }
+        return 0;
+    }
 
     /* Special handling: trying to access outside of our window? This should
         be a programmer error, but here we are. */
@@ -98,14 +134,18 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr
         return 0;
     }
 
-    // --- Special handling for last 4 words before and at DGFXMDEV_WINDOW_TOP ---
+    /* --- Case: mailflag. If it's set, we're in PROCESSING mode. 
+        DGFXMDEV_Tick will handle the rest.  */
+    if (DGFXMDEV_CheckMailflag()) {
+        DGFX_STATE = DGFX_PROCESSING;
+        DGFX_LAST_MESSAGE = "Mailflag detected, starting processing";
+    }
+
+    /* --- Case: identification/timestamp window --- */
     // These are constants: 0xEEEEEEEE, 0xFFFFFFFF, and a 64-bit compilation timestamp.
     // Writing to this area triggers a bus error.
-    // Each word is sizeof(ui5b) bytes, so we need 4 * sizeof(ui5b) bytes total.
-    // The 4-word region occupies the last 16 bytes of the address space.
-    const ui5b special_base = DGFXMDEV_WINDOW_TOP - 4*sizeof(ui5b) + 1;
-    const ui5b special_end  = DGFXMDEV_WINDOW_TOP;
-    if (addr >= special_base && addr <= special_end) {
+    // This is the 16-byte region at the end of the address space: 0x60FFF0-0x60FFFF
+    if (addr >= DGFXMDEV_SPECIAL_START && addr <= DGFXMDEV_SPECIAL_END) {
         // Can't write to this area...
         if (WriteMem) {
             DGFX_LAST_MESSAGE = "DGFX: attempted write to read-only ID/timestamp zone";
@@ -121,8 +161,8 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr
          * Word 2: ts_hi: Date in format 0xYYYYMMDD (BCD)
          * Word 3: ts_lo: Time in format 0xHHMMSS00 (BCD)
          */
-        ui5b word_offset = (addr - special_base) / sizeof(ui5b);
-        ui5b byte_offset = (addr - special_base) % sizeof(ui5b);
+        ui5b word_offset = (addr - DGFXMDEV_SPECIAL_START) / sizeof(ui5b);
+        ui5b byte_offset = (addr - DGFXMDEV_SPECIAL_START) % sizeof(ui5b);
         
         // Debug: Update message to show which word we're accessing
         if (word_offset == 0) {
@@ -171,33 +211,9 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr
             return word_value;
         }
     }
-    // --- End special handling ---
 
-    /* Check the mailflag. If it's set, we're in PROCESSING mode. 
-        DGFXMDEV_Tick will handle the rest.  */
-    if (DGFXMDEV_CheckMailflag()) {
-        DGFX_STATE = DGFX_PROCESSING;
-        DGFX_LAST_MESSAGE = "Mailflag detected, starting processing";
-    }
-
-    /* Update the backing memory DGFXMDEV_MEM. */
-    size_t offset = addr - DGFXMDEV_WINDOW_BOTTOM;
-    size_t word_index = offset / sizeof(ui5b);
-    size_t byte_index = offset % sizeof(ui5b);
-
-    if (WriteMem) {
-        if (ByteSize) {
-            // 8-bit write
-            ((ui3b *)&DGFXMDEV_MEM[word_index])[byte_index] = (ui3b)Data;
-        } else if ((addr & 1) == 0) {
-            // 16-bit write (word, big-endian)
-            ((ui4b *)&DGFXMDEV_MEM[word_index])[byte_index / 2] = (ui4b)Data;
-        } else if ((addr & 3) == 0) {
-            // 32-bit write (long, big-endian)
-            DGFXMDEV_MEM[word_index] = Data;
-        }
-        return 0;
-    }
+    /* --- Case: command/result buffer or on-DGFX memory. 
+    Just a standard read-write as far as the 68k is concerned. */
 
     // Read
     if (ByteSize) {
@@ -210,19 +226,21 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr
         // 32-bit read (long, big-endian)
         return DGFXMDEV_MEM[word_index];
     }
+
+    /* If all else... */
     return 0;
 } 
 
 /* Command-passing. */
 
 ui5b DGFXMDEV_CheckMailflag(void) {
-    // Check to see whether the byte at DGFXMDEV_WINDOW_TOP is 0x01.
-    return ((ui3b *)DGFXMDEV_MEM)[0] == 0x01;
+    // Check to see whether the first 32-bit word (at offset 0) contains DGFX_PROCESSING (2).
+    return DGFXMDEV_MEM[0] == DGFX_PROCESSING;
 }
 
 void DGFXMDEV_ClearMailflag(void) {
-    // Clear the byte at DGFXMDEV_WINDOW_TOP to 0x00.
-    ((ui3b *)DGFXMDEV_MEM)[0] = 0x00;
+    // Clear the first 32-bit word (at offset 0) to DGFX_IDLE (1).
+    DGFXMDEV_MEM[0] = DGFX_IDLE;
 }
 
 /* Helper function to compute BCD-encoded timestamp from __DATE__ and __TIME__. */
