@@ -1,5 +1,25 @@
 # WORKLOG
 
+## 05-23-25: Added special memory range with magic numbers + BCD compilation timestamp
+
+### Special Read-Only Identification/Timestamp Window
+A new **special read-only window** was implemented within the DGFXMDEV address space to provide hardware identification and compilation timestamp information that can be easily read by debuggers and diagnostic tools.
+
+### Behavior
+- **Location**: The special window occupies the last 16 bytes of the DGFXMDEV address space (`DGFXMDEV_WINDOW_TOP - 15` to `DGFXMDEV_WINDOW_TOP`), covering 4 consecutive 32-bit words.
+- **Read-Only Access**: All write attempts to this window are blocked and trigger a bus error via `ReportAbnormalID()`.
+- **Byte-Level Access Support**: The window correctly handles both byte-sized and word-sized reads, making it compatible with memory debuggers like MacsBug that read memory byte-by-byte.
+- **Word Layout**:
+  - **Word 0** (`+0x00`): `0xEEEEEEEE` (identification marker)
+  - **Word 1** (`+0x04`): `0xFFFFFFFF` (identification marker)  
+  - **Word 2** (`+0x08`): BCD-encoded compilation date in format `0xYYYYMMDD`
+  - **Word 3** (`+0x0C`): BCD-encoded compilation time in format `0xHHMMSS00`
+
+### Integration
+- **Source Location**: Implemented in `src/DGFXMDEV.c` within the existing `DGFXMDEV_Access()` function.
+- **Month Parsing**: Converts `__DATE__` month names ("Jan", "Feb", etc.) to numeric values for BCD encoding.
+- **Error Handling**: Invalid date/time values fall back to safe defaults to prevent crashes.
+- **Debug Support**: Integrated with the existing DGFX debug OSD to show access information and assist with development.
 
 ## 05-23-25: Backing MMIO buffer; command processing loop skeleton; MessagePack chosen as wire messaging format; first pipeline defs
 
