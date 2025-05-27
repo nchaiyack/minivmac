@@ -1,5 +1,29 @@
 # WORKLOG
 
+## 01-14-25: Made DGFXMDEV.h no longer dependent on other includes; gave OSD access to DGFXMDEV memory
+
+### Overview
+Restructured the DGFX module to eliminate header dependencies and enable direct memory access from the OSD system. The key changes involved redefining `DGFX_STATE` as a memory-mapped macro and updating the OSD integration to work with the new architecture.
+
+### Changes Made
+
+#### DGFX_STATE Redefinition
+- **From Global Variable to Memory-Mapped Macro**: Changed `DGFX_STATE` from a standalone global variable to a macro that directly accesses the first 32-bit word at `DGFXMDEV_MAILFLAG_START`.
+- **Macro Definition**: `DGFX_STATE` is now defined as `(*(ui5b *)(DGFXMDEV_MEM))`, providing direct access to the mailflag location in the memory-mapped IO region.
+- **State Values**: Maintained the existing state constants (`DGFX_IDLE = 1`, `DGFX_PROCESSING = 2`) for backward compatibility.
+
+#### Header Dependency Elimination
+- **Removed External Dependencies**: Updated `DGFXMDEV.h` to no longer require includes of other project headers like `PICOMMON.h`.
+- **Self-Contained Definitions**: All necessary type definitions and constants are now contained within the DGFX module itself.
+- **Forward Declarations**: Added proper forward declarations to avoid circular include dependencies.
+
+#### OSD Integration Updates
+- **Removed External Variable Declaration**: Eliminated the `extern ui5b DGFX_STATE;` declaration from `CONTROLM.h` since `DGFX_STATE` is now a macro.
+- **Added Header Include**: Added `#include "DGFXMDEV.h"` to `CONTROLM.h` to provide access to the `DGFX_STATE` macro definition.
+- **Maintained Functionality**: The OSD continues to display state information correctly using the new macro-based access pattern.
+
+This refactoring improves the modularity of the DGFX system while enabling more direct and efficient access patterns for debugging and monitoring purposes.
+
 ## 05-23-25: Added special memory range with magic numbers + BCD compilation timestamp
 
 ### Special Read-Only Identification/Timestamp Window

@@ -1469,13 +1469,15 @@ LOCALFUNC blnr WaitForRom(void)
 /* DGFX debug OSD. */
 #if HAS_DGFX
 // Forward declarations for DGFX debug OSD globals
-extern ui5b DGFX_STATE;
 extern ui5b DGFX_LAST_DATA;
 extern blnr DGFX_LAST_WRITEMEM;
 extern blnr DGFX_LAST_BYTESIZE;
 extern ui5b DGFX_LAST_ADDR;
 extern ui5b DGFXMDEV_MEM[];
 extern const char* DGFX_LAST_MESSAGE;
+
+// DGFX_STATE is now a macro, so we need to include the definition
+#include "DGFXMDEV.h"
 
 GLOBALFUNC void DrawCellsDGFXDebugModeBody(void) {
 	char line[64];

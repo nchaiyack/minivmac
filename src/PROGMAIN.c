@@ -57,6 +57,9 @@
 
 #include "MOUSEMDV.h"
 
+#if (CurEmMd == kEmMd_SE)
+#include "DGFXMDEV.h"
+#endif
 
 #include "PROGMAIN.h"
 
@@ -79,6 +82,9 @@ LOCALPROC EmulatedHardwareZap(void)
 #endif
 	Sony_Reset();
 	Extn_Reset();
+#if (CurEmMd == kEmMd_SE)
+	DGFXMDEV_Reset();
+#endif
 	m68k_reset();
 }
 

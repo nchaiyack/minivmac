@@ -18,13 +18,48 @@
 #ifndef DGFXMDEV_H
 #define DGFXMDEV_H
 
-#include "PICOMMON.h"
+/* Forward declarations to avoid including PICOMMON.h in header */
+/* Basic integer types - sized types for cross-platform consistency */
+typedef unsigned char ui3b;
+typedef signed char si3b;
+typedef unsigned short ui4b;
+typedef signed short si4b;
+typedef unsigned int ui5b;
+typedef signed int si5b;
+
+/* Register-sized types (may vary by platform) */
+typedef unsigned char ui3r;
+typedef signed char si3r;
+typedef unsigned short ui4r;
+typedef signed short si4r;
+typedef unsigned int ui5r;
+typedef signed int si5r;
+
+/* Pointer types */
+typedef ui3b *ui3p;
+typedef ui4b *ui4p;
+typedef ui5b *ui5p;
+
+/* Common derived types */
+typedef ui5r uimr;      /* Largest efficiently supported unsigned type */
+typedef si5r simr;      /* Largest efficiently supported signed type */
+typedef ui5b CPTR;      /* CPU pointer type */
+typedef ui3p anyp;      /* Generic pointer type */
+
+/* Boolean type */
+typedef ui3r blnr;
+#define trueblnr 1
+#define falseblnr 0
+
+/* Null pointer */
+#define nullpr ((void *) 0)
+
+/* ATTer structure forward declaration */
+struct ATTer;
+typedef struct ATTer *ATTep;
+
 #include "DGFXMDEV_Pipeline.h"
 
-/* State machine. */
-#define DGFX_IDLE 1
-#define DGFX_PROCESSING 2
-extern ui5b DGFX_STATE;
 
 /* Memory window boundaries (matches memory_map.md). */
 #define DGFXMDEV_WINDOW_BOTTOM        0x600000
@@ -42,6 +77,11 @@ extern ui5b DGFX_STATE;
 #define DGFXMDEV_SPECIAL_START        0x60FFF0
 #define DGFXMDEV_SPECIAL_END          0x60FFFF
 
+/* State machine. */
+#define DGFX_IDLE 1
+#define DGFX_PROCESSING 2
+#define DGFX_STATE (*(ui5b *)(DGFXMDEV_MEM))
+
 ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr);
 void DGFXMDEV_Reset(void);
 void DGFXMDEV_Tick(void);
@@ -57,6 +97,6 @@ extern blnr DGFX_LAST_WRITEMEM;
 extern blnr DGFX_LAST_BYTESIZE;
 extern ui5b DGFX_LAST_ADDR;
 extern const char* DGFX_LAST_MESSAGE;
-
+extern ui5b DGFXMDEV_MEM[];
 
 #endif // DGFXMDEV_H 

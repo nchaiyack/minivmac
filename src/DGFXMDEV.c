@@ -14,6 +14,7 @@
     GNU General Public License for more details.
 */
 
+#include "PICOMMON.h"
 #include "DGFXMDEV.h"
 
 /* Our command-passing schema of choice... */
@@ -22,10 +23,6 @@
 /* Backing memory.*/
 #define DGFXMDEV_WINDOW_SIZE ((DGFXMDEV_WINDOW_TOP - DGFXMDEV_WINDOW_BOTTOM) + 1)
 ui5b DGFXMDEV_MEM[(DGFXMDEV_WINDOW_SIZE + 1) / sizeof(ui5b)] = {0};
-
-/* State machine. */
-ui5b DGFX_STATE = DGFX_IDLE;
-
 
 /* OSD debug variables that we'll define here. */
 ui5b DGFX_LAST_DATA = 0;
@@ -38,8 +35,6 @@ const char* DGFX_LAST_MESSAGE = "No message yet";
 
 void DGFXMDEV_Reset(void) {
     // Reset any internal state here if needed in the future
-    DGFX_STATE = DGFX_IDLE;
-    // Initialize the mailflag register (first word) to DGFX_IDLE
     DGFXMDEV_MEM[0] = DGFX_IDLE;
     // Initialize the rest of memory with a pattern for debugging
     for (size_t i = 1; i < (sizeof(DGFXMDEV_MEM)/sizeof(DGFXMDEV_MEM[0])); ++i) {
@@ -106,25 +101,6 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr
     DGFX_LAST_WRITEMEM = WriteMem;
     DGFX_LAST_BYTESIZE = ByteSize;
     DGFX_LAST_ADDR = addr;
-
-    /* Update the backing memory DGFXMDEV_MEM. */
-    size_t offset = addr - DGFXMDEV_WINDOW_BOTTOM;
-    size_t word_index = offset / sizeof(ui5b);
-    size_t byte_index = offset % sizeof(ui5b);
-
-    if (WriteMem) {
-        if (ByteSize) {
-            // 8-bit write
-            ((ui3b *)&DGFXMDEV_MEM[word_index])[byte_index] = (ui3b)Data;
-        } else if ((addr & 1) == 0) {
-            // 16-bit write (word, big-endian)
-            ((ui4b *)&DGFXMDEV_MEM[word_index])[byte_index / 2] = (ui4b)Data;
-        } else if ((addr & 3) == 0) {
-            // 32-bit write (long, big-endian)
-            DGFXMDEV_MEM[word_index] = Data;
-        }
-        return 0;
-    }
 
     /* Special handling: trying to access outside of our window? This should
         be a programmer error, but here we are. */
@@ -227,20 +203,42 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr
     /* --- Case: command/result buffer or on-DGFX memory. 
     Just a standard read-write as far as the 68k is concerned. */
 
+    size_t offset = addr - DGFXMDEV_WINDOW_BOTTOM;
+    size_t word_index = offset / sizeof(ui5b);
+    size_t byte_index = offset % sizeof(ui5b);
+
+    /* Update the backing memory DGFXMDEV_MEM. */
+    if (WriteMem) {
+        if (ByteSize) {
+            // 8-bit write
+            ((ui3b *)&DGFXMDEV_MEM[word_index])[byte_index] = (ui3b)Data;
+        } else if ((addr & 3) == 0) {
+            // 32-bit write (long-aligned)
+            DGFXMDEV_MEM[word_index] = Data;
+        } else if ((addr & 1) == 0) {
+            // 16-bit write (word-aligned)
+            ((ui4b *)&DGFXMDEV_MEM[word_index])[byte_index / 2] = (ui4b)Data;
+        } else {
+            // Unaligned write - shouldn't happen in normal 68k code, treat as 32-bit
+            DGFXMDEV_MEM[word_index] = Data;
+        }
+        return 0;
+    }
+
     // Read
     if (ByteSize) {
         // 8-bit read
         return ((ui3b *)&DGFXMDEV_MEM[word_index])[byte_index];
-    } else if ((addr & 1) == 0) {
-        // 16-bit read (word, big-endian)
-        return ((ui4b *)&DGFXMDEV_MEM[word_index])[byte_index / 2];
     } else if ((addr & 3) == 0) {
-        // 32-bit read (long, big-endian)
+        // 32-bit read (long-aligned)
+        return DGFXMDEV_MEM[word_index];
+    } else if ((addr & 1) == 0) {
+        // 16-bit read (word-aligned)
+        return ((ui4b *)&DGFXMDEV_MEM[word_index])[byte_index / 2];
+    } else {
+        // Unaligned read - shouldn't happen in normal 68k code, return full word
         return DGFXMDEV_MEM[word_index];
     }
-
-    /* If all else... */
-    return 0;
 } 
 
 /* Command-passing. */
