@@ -42,8 +42,8 @@ Within the Macintosh SE's post-ROM overlay memory map, the DGFX reserves the are
     0x60FFEF  ├─────────────────────────────────────────────────────────────┤
     0x60FFF0  │ Special Identification/Timestamp Window (16 bytes)          │
               │ ┌─────────────────────────────────────────────────────────┐ │
-              │ │ +0x00: 0xEEEEEEEE (magic constant)                      │ │
-              │ │ +0x04: 0xFFFFFFFF (magic constant)                      │ │  
+              │ │ +0x00: 0x12345678 (magic constant)                      │ │
+              │ │ +0x04: 0xFEDCBA98 (magic constant)                      │ │  
               │ │ +0x08: 0xYYYYMMDD (BCD compilation date)                │ │
               │ │ +0x0C: 0xHHMMSS00 (BCD compilation time)                │ │
               │ └─────────────────────────────────────────────────────────┘ │
@@ -67,9 +67,9 @@ Within the Macintosh SE's post-ROM overlay memory map, the DGFX reserves the are
 
 5.  **0x60FFF0-0x60FFFF: Special identification/timestamp window.** These four 32-bit words contain metadata that help MacOS applications identify the DGFX:
 
-    a.  **0x60FFF0-0x60FFF3**: magic constant 0xEEEEEEEE.
+    a.  **0x60FFF0-0x60FFF3**: magic constant 0x12345678.
 
-    b.  **0x60FFF4-0x60FFF7**: magic constant 0xFFFFFFFF.
+    b.  **0x60FFF4-0x60FFF7**: magic constant 0xFEDCBA98.
 
     c.  **0x60FFF8-0x60FFFB**: BCD date of compilation in the form 0xYYYYMMDD.
 

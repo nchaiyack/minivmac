@@ -10,8 +10,8 @@ A new **special read-only window** was implemented within the DGFXMDEV address s
 - **Read-Only Access**: All write attempts to this window are blocked and trigger a bus error via `ReportAbnormalID()`.
 - **Byte-Level Access Support**: The window correctly handles both byte-sized and word-sized reads, making it compatible with memory debuggers like MacsBug that read memory byte-by-byte.
 - **Word Layout**:
-  - **Word 0** (`+0x00`): `0xEEEEEEEE` (identification marker)
-  - **Word 1** (`+0x04`): `0xFFFFFFFF` (identification marker)  
+  - **Word 0** (`+0x00`): `0x12345678` (identification marker)
+  - **Word 1** (`+0x04`): `0xFEDCBA98` (identification marker)  
   - **Word 2** (`+0x08`): BCD-encoded compilation date in format `0xYYYYMMDD`
   - **Word 3** (`+0x0C`): BCD-encoded compilation time in format `0xHHMMSS00`
 

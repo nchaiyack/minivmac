@@ -142,7 +142,7 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr
     }
 
     /* --- Case: identification/timestamp window --- */
-    // These are constants: 0xEEEEEEEE, 0xFFFFFFFF, and a 64-bit compilation timestamp.
+    // These are constants: 0x12345678, 0xFEDCBA98, and a 64-bit compilation timestamp.
     // Writing to this area triggers a bus error.
     // This is the 16-byte region at the end of the address space: 0x60FFF0-0x60FFFF
     if (addr >= DGFXMDEV_SPECIAL_START && addr <= DGFXMDEV_SPECIAL_END) {
@@ -156,8 +156,8 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr
         // Compute which word this is (0, 1, 2, 3)
         /*
          * Layout of the 4-word identification/timestamp area:
-         * Word 0: 0xEEEEEEEE (identification marker)
-         * Word 1: 0xFFFFFFFF (identification marker) 
+         * Word 0: 0x12345678 (identification marker)
+         * Word 1: 0xFEDCBA98 (identification marker) 
          * Word 2: ts_hi: Date in format 0xYYYYMMDD (BCD)
          * Word 3: ts_lo: Time in format 0xHHMMSS00 (BCD)
          */
@@ -166,9 +166,9 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr
         
         // Debug: Update message to show which word we're accessing
         if (word_offset == 0) {
-            DGFX_LAST_MESSAGE = "DGFX special: word 0 (EEE)";
+            DGFX_LAST_MESSAGE = "DGFX special: word 0 (12345678)";
         } else if (word_offset == 1) {
-            DGFX_LAST_MESSAGE = "DGFX special: word 1 (FFF)";
+            DGFX_LAST_MESSAGE = "DGFX special: word 1 (FEDCBA98)";
         } else if (word_offset == 2) {
             DGFX_LAST_MESSAGE = "DGFX special: word 2 (date)";
         } else if (word_offset == 3) {
@@ -181,10 +181,10 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr
         ui5b word_value;
         switch (word_offset) {
             case 0:
-                word_value = 0xEEEEEEEE;
+                word_value = 0x12345678;
                 break;
             case 1:
-                word_value = 0xFFFFFFFF;
+                word_value = 0xFEDCBA98;
                 break;
             case 2:
             case 3:
@@ -204,10 +204,22 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr
                 break;
         }
         
-        // For byte reads, return the appropriate byte (big-endian)
+        // For reads, return the appropriate portion based on access size
         if (ByteSize) {
+            // 8-bit read: return the appropriate byte (big-endian)
             return (word_value >> (8 * (3 - byte_offset))) & 0xFF;
+        } else if ((addr & 3) == 0) {
+            // 32-bit read (long-aligned): return the full word
+            return word_value;
+        } else if ((addr & 1) == 0) {
+            // 16-bit read (word-aligned): return the appropriate 16-bit portion (big-endian)
+            if (byte_offset == 0) {
+                return (word_value >> 16) & 0xFFFF;  // Upper 16 bits
+            } else {  // byte_offset == 2
+                return word_value & 0xFFFF;          // Lower 16 bits
+            }
         } else {
+            // Unaligned access - shouldn't happen in normal 68k code, return full word
             return word_value;
         }
     }
