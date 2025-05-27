@@ -21,7 +21,7 @@ Within the Macintosh SE's post-ROM overlay memory map, the DGFX reserves the are
 ### Structure of the memory window: diagram form
 
     0x600000  ┌─────────────────────────────────────────────────────────────┐
-              │ Mailflag Register (4 bytes)                                 │
+              │ Mailflag Register (4 bytes, big-endian)                     |      
               │ States: DGFX_IDLE=1, DGFX_PROCESSING=2                      │
     0x600004  ├─────────────────────────────────────────────────────────────┤
               │ Command/Result MessagePack Buffer Array (56 bytes)          │

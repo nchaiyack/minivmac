@@ -1489,7 +1489,7 @@ GLOBALFUNC void DrawCellsDGFXDebugModeBody(void) {
 	DrawCellsEndLine();
 
 	// Show state machine status.
-	sprintf(line, "DGFX_STATE: %ld", (long)DGFX_STATE);
+	sprintf(line, "DGFX_STATE: %08X", (unsigned int)do_get_mem_long((ui3p)DGFXMDEV_MEM));
 	DrawCellsBeginLine();
 	DrawCellsFromStr(line);
 	DrawCellsEndLine();

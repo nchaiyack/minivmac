@@ -35,10 +35,10 @@ const char* DGFX_LAST_MESSAGE = "No message yet";
 
 void DGFXMDEV_Reset(void) {
     // Reset any internal state here if needed in the future
-    DGFXMDEV_MEM[0] = DGFX_IDLE;
+    do_put_mem_long((ui3p)DGFXMDEV_MEM, DGFX_IDLE);    // Set mailflag register to IDLE state (0x00000001 in big-endian)
     // Initialize the rest of memory with a pattern for debugging
     for (size_t i = 1; i < (sizeof(DGFXMDEV_MEM)/sizeof(DGFXMDEV_MEM[0])); ++i) {
-        DGFXMDEV_MEM[i] = 0xF00F;
+        do_put_mem_long((ui3p)&DGFXMDEV_MEM[i], 0xF00F);
     }
     DGFX_LAST_MESSAGE = "Device reset complete";
 }
@@ -59,8 +59,8 @@ void DGFXMDEV_Tick(void) {
             size_t addr_word_idx = cmdlist_word_start + (pair_idx * 2);
             size_t len_word_idx = cmdlist_word_start + (pair_idx * 2) + 1;
             
-            ui5b cmd_addr = DGFXMDEV_MEM[addr_word_idx];
-            ui5b cmd_length = DGFXMDEV_MEM[len_word_idx];
+            ui5b cmd_addr = do_get_mem_long((ui3p)&DGFXMDEV_MEM[addr_word_idx]);
+            ui5b cmd_length = do_get_mem_long((ui3p)&DGFXMDEV_MEM[len_word_idx]);
             
             // Terminator found (0, 0) - stop processing
             if (cmd_addr == 0 && cmd_length == 0) {
@@ -73,7 +73,7 @@ void DGFXMDEV_Tick(void) {
                 ui5b *cmdBuffer = (ui5b *)malloc(cmd_length);
                 if (cmdBuffer) {
                     for (ui5b j = 0; j < cmd_length; j++) {
-                        cmdBuffer[j] = DGFXMDEV_MEM[(cmd_addr - DGFXMDEV_WINDOW_BOTTOM) / sizeof(ui5b) + j];
+                        cmdBuffer[j] = do_get_mem_long((ui3p)&DGFXMDEV_MEM[(cmd_addr - DGFXMDEV_WINDOW_BOTTOM) / sizeof(ui5b) + j]);
                     }
 
                     // TODO: Process the command buffer here
@@ -128,15 +128,8 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr
             ReportAbnormalID(0xD00D, "DGFX: write to identification + compile timestamp area");  
             return 0;
         }
-        // Read: return constants.
-        // Compute which word this is (0, 1, 2, 3)
-        /*
-         * Layout of the 4-word identification/timestamp area:
-         * Word 0: 0x12345678 (identification marker)
-         * Word 1: 0xFEDCBA98 (identification marker) 
-         * Word 2: ts_hi: Date in format 0xYYYYMMDD (BCD)
-         * Word 3: ts_lo: Time in format 0xHHMMSS00 (BCD)
-         */
+        
+        // Read: return constants based on access type
         ui5b word_offset = (addr - DGFXMDEV_SPECIAL_START) / sizeof(ui5b);
         ui5b byte_offset = (addr - DGFXMDEV_SPECIAL_START) % sizeof(ui5b);
         
@@ -180,23 +173,19 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr
                 break;
         }
         
-        // For reads, return the appropriate portion based on access size
+        // Return appropriate data based on access size
         if (ByteSize) {
             // 8-bit read: return the appropriate byte (big-endian)
             return (word_value >> (8 * (3 - byte_offset))) & 0xFF;
-        } else if ((addr & 3) == 0) {
-            // 32-bit read (long-aligned): return the full word
-            return word_value;
-        } else if ((addr & 1) == 0) {
-            // 16-bit read (word-aligned): return the appropriate 16-bit portion (big-endian)
-            if (byte_offset == 0) {
-                return (word_value >> 16) & 0xFFFF;  // Upper 16 bits
-            } else {  // byte_offset == 2
-                return word_value & 0xFFFF;          // Lower 16 bits
-            }
         } else {
-            // Unaligned access - shouldn't happen in normal 68k code, return full word
-            return word_value;
+            // 16-bit read: return the appropriate 16-bit portion (big-endian)
+            if ((addr & 2) == 0) {
+                // Even word boundary: return upper 16 bits
+                return (word_value >> 16) & 0xFFFF;
+            } else {
+                // Odd word boundary: return lower 16 bits
+                return word_value & 0xFFFF;
+            }
         }
     }
 
@@ -210,34 +199,26 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr
     /* Update the backing memory DGFXMDEV_MEM. */
     if (WriteMem) {
         if (ByteSize) {
-            // 8-bit write
-            ((ui3b *)&DGFXMDEV_MEM[word_index])[byte_index] = (ui3b)Data;
-        } else if ((addr & 3) == 0) {
-            // 32-bit write (long-aligned)
-            DGFXMDEV_MEM[word_index] = Data;
-        } else if ((addr & 1) == 0) {
-            // 16-bit write (word-aligned)
-            ((ui4b *)&DGFXMDEV_MEM[word_index])[byte_index / 2] = (ui4b)Data;
+            // 8-bit write: update single byte in the 32-bit word
+            ui3p byte_addr = ((ui3p)DGFXMDEV_MEM) + offset;
+            do_put_mem_byte(byte_addr, (ui3b)Data);
         } else {
-            // Unaligned write - shouldn't happen in normal 68k code, treat as 32-bit
-            DGFXMDEV_MEM[word_index] = Data;
+            // 16-bit write: update 16-bit portion of the 32-bit word
+            ui3p word_addr = ((ui3p)DGFXMDEV_MEM) + (offset & ~1);
+            do_put_mem_word(word_addr, (ui4r)Data);
         }
         return 0;
     }
 
-    // Read
+    // Read operations
     if (ByteSize) {
-        // 8-bit read
-        return ((ui3b *)&DGFXMDEV_MEM[word_index])[byte_index];
-    } else if ((addr & 3) == 0) {
-        // 32-bit read (long-aligned)
-        return DGFXMDEV_MEM[word_index];
-    } else if ((addr & 1) == 0) {
-        // 16-bit read (word-aligned)
-        return ((ui4b *)&DGFXMDEV_MEM[word_index])[byte_index / 2];
+        // 8-bit read: return single byte from the 32-bit word
+        ui3p byte_addr = ((ui3p)DGFXMDEV_MEM) + offset;
+        return do_get_mem_byte(byte_addr);
     } else {
-        // Unaligned read - shouldn't happen in normal 68k code, return full word
-        return DGFXMDEV_MEM[word_index];
+        // 16-bit read: return 16-bit portion from the 32-bit word
+        ui3p word_addr = ((ui3p)DGFXMDEV_MEM) + (offset & ~1);
+        return do_get_mem_word(word_addr);
     }
 } 
 
@@ -245,12 +226,12 @@ ui5b DGFXMDEV_Access(ATTep p, ui5b Data, blnr WriteMem, blnr ByteSize, ui5b addr
 
 ui5b DGFXMDEV_CheckMailflag(void) {
     // Check to see whether the first 32-bit word (at offset 0) contains DGFX_PROCESSING (2).
-    return DGFXMDEV_MEM[0] == DGFX_PROCESSING;
+    return do_get_mem_long((ui3p)DGFXMDEV_MEM) == DGFX_PROCESSING;
 }
 
 void DGFXMDEV_ClearMailflag(void) {
     // Clear the first 32-bit word (at offset 0) to DGFX_IDLE (1).
-    DGFXMDEV_MEM[0] = DGFX_IDLE;
+    do_put_mem_long((ui3p)DGFXMDEV_MEM, DGFX_IDLE);
 }
 
 /* Helper function to compute BCD-encoded timestamp from __DATE__ and __TIME__. */

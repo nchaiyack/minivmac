@@ -1,5 +1,35 @@
 # WORKLOG
 
+## 01-14-25: Ugh, forgot that M68k was big-endian...
+
+### Overview
+Fixed critical endianness issues in the DGFX module where memory accesses were not properly handling the M68k's big-endian architecture. All direct memory operations were replaced with proper endianness-aware functions to ensure correct data interpretation regardless of the host system's native endianness.
+
+### Changes Made
+
+#### DGFX_STATE Display Fix (CONTROLM.h)
+- **Problem**: The DGFX debug OSD was directly casting `DGFX_STATE` to display its value, which didn't account for endianness conversion.
+- **Solution**: Replaced direct macro access with `do_get_mem_long((ui3p)DGFXMDEV_MEM)` to properly read the 32-bit state value as big-endian.
+- **Impact**: The debug display now correctly shows the state machine status regardless of host architecture.
+
+#### Memory Access Functions (DGFXMDEV.c)
+- **16-bit Operations**: 
+  - **Writes**: Replaced direct pointer casting with `do_put_mem_word()` for proper big-endian 16-bit writes
+  - **Reads**: Replaced direct pointer casting with `do_get_mem_word()` for proper big-endian 16-bit reads
+- **32-bit Operations**:
+  - **Writes**: Replaced direct array assignments with `do_put_mem_long()` for proper big-endian 32-bit writes
+  - **Reads**: Replaced direct array access with `do_get_mem_long()` for proper big-endian 32-bit reads
+- **8-bit Operations**: Updated to use `do_put_mem_byte()` and `do_get_mem_byte()` for consistency
+
+#### Affected Functions
+- `DGFXMDEV_Access()`: Fixed all memory read/write operations in the main access handler
+- `DGFXMDEV_Reset()`: Fixed initialization of memory buffer with proper endianness
+- `DGFXMDEV_Tick()`: Fixed command buffer reading to use proper endianness
+- `DGFXMDEV_CheckMailflag()` and `DGFXMDEV_ClearMailflag()`: Fixed state machine operations
+
+### Technical Details
+The M68k processor uses big-endian byte ordering, meaning the most significant byte is stored at the lowest memory address. The endianness-aware functions (`do_get_mem_*` and `do_put_mem_*`) automatically handle conversion between the host system's native endianness and the required big-endian format, ensuring correct operation on both big-endian and little-endian host systems.
+
 ## 01-14-25: Made DGFXMDEV.h no longer dependent on other includes; gave OSD access to DGFXMDEV memory
 
 ### Overview
