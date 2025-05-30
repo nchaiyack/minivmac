@@ -1489,40 +1489,43 @@ GLOBALFUNC void DrawCellsDGFXDebugModeBody(void) {
 	DrawCellsEndLine();
 
 	// Show state machine status.
-	sprintf(line, "DGFX_STATE: %08X", (unsigned int)do_get_mem_long((ui3p)DGFXMDEV_MEM));
+	sprintf(line, "DGFX_STATE: %08X", do_get_mem_word((ui3p)DGFXMDEV_MEM));
 	DrawCellsBeginLine();
 	DrawCellsFromStr(line);
 	DrawCellsEndLine();
 
 	// Show last access address
-	sprintf(line, "DGFX_Access: Last addr: %08X", (unsigned int)DGFX_LAST_ADDR);
+	sprintf(line, "DGFX_Access: Last addr: %08X", DGFX_LAST_ADDR);
 	DrawCellsBeginLine();
 	DrawCellsFromStr(line);
 	DrawCellsEndLine();
 
-	sprintf(line, "DGFX_Access: Data: %08lX", (unsigned long)DGFX_LAST_DATA);
+	sprintf(line, "DGFX_Access: Data: %08lX", DGFX_LAST_DATA);
 	DrawCellsBeginLine();
 	DrawCellsFromStr(line);
 	DrawCellsEndLine();
 
-	sprintf(line, "DGFX_Access: WriteMem: %d", (int)DGFX_LAST_WRITEMEM);
+	sprintf(line, "DGFX_Access: WriteMem: %08X", DGFX_LAST_WRITEMEM);
 	DrawCellsBeginLine();
 	DrawCellsFromStr(line);
 	DrawCellsEndLine();
 
-	sprintf(line, "DGFX_Access: ByteSize: %d", (int)DGFX_LAST_BYTESIZE);
+	sprintf(line, "DGFX_Access: ByteSize: %d", DGFX_LAST_BYTESIZE);
 	DrawCellsBeginLine();
 	DrawCellsFromStr(line);
 	DrawCellsEndLine();
 
 	// Show command stack entries (addr/length pairs)
-	for (int i = 1; i <= 8; i += 2) {
-		sprintf(line, "Command Stack: Cmd %d addr: %08lX", (i+1)/2, (unsigned long)DGFXMDEV_MEM[i]);
+	for (ui5b addr = DGFXMDEV_COMMANDLIST_START; addr <= DGFXMDEV_COMMANDLIST_END; addr += 8) {
+		ui5b cmd_addr = do_get_mem_long((ui3p)&DGFXMDEV_MEM[(addr - DGFXMDEV_WINDOW_BOTTOM) / sizeof(ui5b)]);
+		ui5b cmd_length = do_get_mem_long((ui3p)&DGFXMDEV_MEM[(addr - DGFXMDEV_WINDOW_BOTTOM) / sizeof(ui5b) + 1]);
+		
+		sprintf(line, "Command Stack: Cmd %lu addr: 0x%08lX", (addr - DGFXMDEV_COMMANDLIST_START) / 8 + 1, cmd_addr);
 		DrawCellsBeginLine();
 		DrawCellsFromStr(line);
 		DrawCellsEndLine();
 
-		sprintf(line, "Command Stack: Cmd %d length: %08lX", (i+1)/2, (unsigned long)DGFXMDEV_MEM[i+1]); 
+		sprintf(line, "Command Stack: Cmd %lu length: %lu bytes", (addr - DGFXMDEV_COMMANDLIST_START) / 8 + 1, cmd_length);
 		DrawCellsBeginLine();
 		DrawCellsFromStr(line);
 		DrawCellsEndLine();

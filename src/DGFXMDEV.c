@@ -36,8 +36,16 @@ const char* DGFX_LAST_MESSAGE = "No message yet";
 void DGFXMDEV_Reset(void) {
     // Reset any internal state here if needed in the future
     do_put_mem_long((ui3p)DGFXMDEV_MEM, DGFX_IDLE);    // Set mailflag register to IDLE state (0x00000001 in big-endian)
-    // Initialize the rest of memory with a pattern for debugging
-    for (size_t i = 1; i < (sizeof(DGFXMDEV_MEM)/sizeof(DGFXMDEV_MEM[0])); ++i) {
+    // Initialize DGFX_COMMANDLIST_START to DGFX_COMMANDLIST_END with 0x00000000
+    for (size_t i = (DGFXMDEV_COMMANDLIST_START - DGFXMDEV_WINDOW_BOTTOM) / sizeof(ui5b); 
+         i <= (DGFXMDEV_COMMANDLIST_END - DGFXMDEV_WINDOW_BOTTOM) / sizeof(ui5b); 
+         ++i) {
+        do_put_mem_long((ui3p)&DGFXMDEV_MEM[i], 0x00000000);
+    }
+    // Initialize from DGFX_UNUSED_START to CLIENT_MEM_END with a pattern for debugging
+    for (size_t i = (DGFXMDEV_UNUSED_START - DGFXMDEV_WINDOW_BOTTOM) / sizeof(ui5b); 
+         i <= (DGFXMDEV_CLIENT_MEM_END - DGFXMDEV_WINDOW_BOTTOM) / sizeof(ui5b); 
+         ++i) {
         do_put_mem_long((ui3p)&DGFXMDEV_MEM[i], 0xF00F);
     }
     DGFX_LAST_MESSAGE = "Device reset complete";
